@@ -1,0 +1,156 @@
+---
+title: "Teacher guide: evaluations and grading"
+description: "Teachers (Docente) can view assigned courses, create weighted evaluations, record individual student grades, and check per-assignment evaluation statistics."
+---
+
+Teachers in PlataformaEduca — referred to as **Docente** — are assigned to specific courses and classrooms by the institution's coordinator. Once assigned, your role is to define the evaluation structure for each course (tests, quizzes, exams) and record each student's grade against those evaluations. The platform resolves your identity from the JWT token on every request, so you only ever see data that belongs to your assignments.
+
+## Authentication
+
+Obtain a JWT token by posting your credentials to the shared auth endpoint.
+
+<CodeGroup>
+
+```bash request
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "teacher@school.edu", "password": "yourpassword"}'
+```
+
+```json response
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+</CodeGroup>
+
+Pass this token as a `Bearer` header on every subsequent request.
+
+---
+
+## Viewing your assigned courses
+
+The platform resolves your identity from the email embedded in your JWT and returns only the assignments that belong to you.
+
+```bash
+curl -X GET http://localhost:8080/api/docente/mis-cursos \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 5,
+    "docente": { "id": 3, "nombre": "Ana Torres" },
+    "curso":   { "id": 1, "nombre": "Matemáticas" },
+    "aula":    { "id": 2, "nombre": "Aula 205" },
+    "periodo": { "id": 1, "nombre": "2024-I" }
+  }
+]
+```
+
+<Note>
+The top-level `id` in each record is the **asignacion ID** (`asignacionDocente.id`). You will need this value when creating evaluations and retrieving statistics.
+</Note>
+
+---
+
+## Creating an evaluation
+
+An `Evaluacion` represents a single graded activity — a test, quiz, homework assignment, or exam. Each evaluation carries a `porcentaje` (percentage weight) that determines how much it contributes to a student's final grade.
+
+```bash
+curl -X POST http://localhost:8080/api/docente/evaluaciones \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo":            "Examen Parcial",
+    "porcentaje":        30.0,
+    "fecha":             "2024-06-15",
+    "curso":             { "id": 1 },
+    "asignacionDocente": { "id": 5 }
+  }'
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `titulo` | string | Display name for the evaluation |
+| `porcentaje` | number | Weight toward the final grade (e.g., `30.0` means 30%) |
+| `fecha` | string | Evaluation date in `YYYY-MM-DD` format |
+| `curso` | object | The course this evaluation belongs to |
+| `asignacionDocente` | object | Your assignment record — obtained from `/api/docente/mis-cursos` |
+
+<Tip>
+Make sure the sum of all `porcentaje` values across evaluations for a given assignment does not exceed 100. PlataformaEduca does not enforce this automatically.
+</Tip>
+
+---
+
+## Recording a student grade
+
+Once an evaluation exists, record each student's score with a POST to the notes endpoint.
+
+```bash
+curl -X POST http://localhost:8080/api/docente/notas \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nota":        18.5,
+    "observacion": "Excelente desempeño",
+    "evaluacion":  { "id": 1 },
+    "estudiante":  { "id": 7 }
+  }'
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `nota` | number | Numeric score — the platform uses a 0–20 scale by convention |
+| `observacion` | string | Optional teacher comment visible to the student |
+| `evaluacion` | object | The evaluation being graded |
+| `estudiante` | object | The student receiving the grade |
+
+<Note>
+You need the student's `id`. Students are registered in the system with a unique `codigo` and are visible through the admin user management endpoints if you need to look up IDs.
+</Note>
+
+---
+
+## Viewing assignment statistics
+
+Retrieve a summary of evaluation activity for a specific assignment.
+
+```bash
+curl -X GET http://localhost:8080/api/docente/estadisticas/5 \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "totalEvaluaciones": 3
+}
+```
+
+Replace `5` with your `asignacionDocente` ID. This endpoint currently returns the total number of evaluations created under that assignment.
+
+---
+
+## Common workflow
+
+<Steps>
+  <Step title="Log in and obtain a JWT token">
+    POST to `/api/auth/login` with your teacher credentials. Save the returned `token`.
+  </Step>
+  <Step title="View your assigned courses">
+    GET `/api/docente/mis-cursos` to see all courses assigned to you. Note the top-level `id` of each record — this is the `asignacionDocente` ID you will reference throughout.
+  </Step>
+  <Step title="Create an evaluation">
+    POST to `/api/docente/evaluaciones` with a title, percentage weight, date, course ID, and your asignacion ID. Repeat for each graded activity in the course (midterm, final, assignments, etc.).
+  </Step>
+  <Step title="Record student grades">
+    POST to `/api/docente/notas` for each student and each evaluation. Provide the student's ID, the evaluation's ID, the numeric score, and an optional observation.
+  </Step>
+  <Step title="Review assignment statistics">
+    GET `/api/docente/estadisticas/{asignacionId}` to confirm how many evaluations have been created for the assignment and verify your grading progress.
+  </Step>
+</Steps>

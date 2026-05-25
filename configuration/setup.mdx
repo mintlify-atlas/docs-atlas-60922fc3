@@ -1,0 +1,115 @@
+---
+title: "Running PlataformaEduca in your environment"
+description: "Configure application.properties for your MySQL database and JWT settings, then build and start the Spring Boot server with Maven."
+---
+
+PlataformaEduca is packaged as a standard Spring Boot application and runs anywhere Java 21 is available. This page covers system requirements, the full `application.properties` configuration reference, and the commands to build and start the server.
+
+## System requirements
+
+| Requirement | Version |
+|---|---|
+| Java | 21 |
+| Maven | 3.8+ (or use the included `mvnw` wrapper) |
+| MySQL | 8.x |
+
+## Create the database
+
+Before starting the server, create the MySQL schema:
+
+```bash
+mysql -u root -p -e "CREATE DATABASE plataforma_educativa;"
+```
+
+<Note>
+  The schema name `plataforma_educativa` must match the `spring.datasource.url` property exactly.
+</Note>
+
+## Configure application.properties
+
+Open `src/main/resources/application.properties` and populate it with the following settings. Adjust the username, password, and JWT secret for your environment.
+
+```properties
+# DataSource
+spring.datasource.url=jdbc:mysql://localhost:3306/plataforma_educativa
+spring.datasource.username=root
+spring.datasource.password=yourpassword
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA / Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+
+# JWT
+jwt.secret=esta_es_una_clave_secreta_super_larga_y_segura_de_mas_de_32_caracteres_para_la_plataforma
+jwt.expiration=86400000
+```
+
+<Warning>
+  The `jwt.secret` value must be at least 32 characters long for HS256 signing. Use a random, high-entropy string in production and never commit it to version control.
+</Warning>
+
+### Key properties explained
+
+| Property | Description |
+|---|---|
+| `spring.jpa.hibernate.ddl-auto=update` | Hibernate creates and updates tables automatically on startup. No manual migration needed. |
+| `jwt.expiration` | Token validity in milliseconds. `86400000` = 24 hours. |
+| `spring.jpa.show-sql=true` | Logs all SQL statements to stdout. Disable in production for performance. |
+
+## Build the project
+
+```bash
+./mvnw clean package -DskipTests
+```
+
+<Tip>
+  `-DskipTests` skips the test suite to speed up the initial build. Run `./mvnw test` separately to execute tests.
+</Tip>
+
+## Start the server
+
+```bash
+./mvnw spring-boot:run
+```
+
+The application starts on port `8080`. On first startup, the `DataInitializer` component seeds the database with roles, sample grade levels, classrooms, courses, and four default user accounts. You do not need to run any SQL scripts manually.
+
+## Verify the setup
+
+Confirm the server is running and data is seeded by calling the courses endpoint with the admin credentials:
+
+<Steps>
+  <Step title="Log in as admin">
+    ```bash
+    curl -s -X POST http://localhost:8080/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"email": "admin@gmail.com", "password": "admin123"}'
+    ```
+
+    Copy the `token` value from the response.
+  </Step>
+
+  <Step title="Call GET /api/cursos">
+    ```bash
+    curl -s http://localhost:8080/api/cursos \
+      -H "Authorization: Bearer <your-token>"
+    ```
+
+    You should see the seeded courses (Matemáticas and Comunicación) in the response. If you receive a non-empty array, the server and database are configured correctly.
+  </Step>
+</Steps>
+
+## API documentation
+
+Once the server is running, two documentation interfaces are available:
+
+<Columns cols={2}>
+  <Card title="Swagger UI" icon="browser" href="http://localhost:8080/swagger-ui.html">
+    Interactive API explorer. Paste your Bearer token to authenticate and test endpoints directly in the browser.
+  </Card>
+  <Card title="OpenAPI JSON" icon="code" href="http://localhost:8080/v3/api-docs">
+    Raw OpenAPI specification at `http://localhost:8080/v3/api-docs`. Import this into Postman or other API clients.
+  </Card>
+</Columns>

@@ -1,0 +1,105 @@
+---
+title: "JWT security and role-based access"
+description: "PlataformaEduca uses stateless JWT authentication. Learn how tokens are issued, validated, and how role claims control access to each API route."
+---
+
+PlataformaEduca enforces security at two levels: authentication (is the request from a known user?) and authorization (does that user have the right role?). Both are handled via JSON Web Tokens — no server-side sessions are created or maintained.
+
+## How tokens work
+
+Tokens are issued by the `/api/auth/login` endpoint and follow the JWT standard:
+
+- **Algorithm**: HS256 (HMAC-SHA256)
+- **Subject claim**: the user's email address
+- **Custom claim**: `roles` — an array of role strings, e.g. `["ROLE_DOCENTE"]`
+- **Validity**: 24 hours (86400000 ms) from the time of issue, configured via `jwt.expiration`
+- **Secret**: the value of `jwt.secret` in `application.properties`; must be at least 32 characters
+
+```json
+{
+  "sub": "profe@gmail.com",
+  "roles": ["ROLE_DOCENTE"],
+  "iat": 1700000000,
+  "exp": 1700086400
+}
+```
+
+<Warning>
+  Keep `jwt.secret` private. Anyone who knows the secret can forge valid tokens. Use a long, random string and never commit it to version control.
+</Warning>
+
+## Token validation
+
+Every incoming request passes through `JwtFilter`, which extends Spring's `OncePerRequestFilter`. The filter:
+
+1. Checks whether the request path is on the public allowlist (see below). If so, the filter skips validation entirely.
+2. Reads the `Authorization` header and extracts the Bearer token.
+3. Validates the signature and expiry using the configured secret.
+4. If valid, loads the user's authorities from the token's `roles` claim and sets the `SecurityContext`.
+5. If invalid or missing, the request continues unauthenticated and Spring Security returns `401` for any protected route.
+
+## Session policy
+
+HTTP sessions are disabled:
+
+```properties
+# No sessions are created or used
+SessionCreationPolicy.STATELESS
+```
+
+CSRF protection is also disabled, which is correct for a stateless token-based API. Each request is self-contained and authenticated via the `Authorization` header alone.
+
+## Passwords
+
+User passwords are stored as **BCrypt hashes**. Plain-text passwords are never persisted. BCrypt hashing is applied automatically at registration time.
+
+## Route protection
+
+| Route pattern | Access level |
+|---|---|
+| `/api/auth/register` | Public — no token required |
+| `/api/auth/login` | Public — no token required |
+| `/swagger-ui/**` | Public |
+| `/v3/api-docs/**` | Public |
+| `/api/cursos/**` | Any authenticated user |
+| `/api/notas/**` | Any authenticated user |
+| `/api/coordinador/**` | COORDINADOR role only |
+| `/api/docente/**` | DOCENTE role only |
+| `/api/estudiante/**` | ESTUDIANTE role only |
+
+<Note>
+  "Any authenticated user" means a valid, unexpired token is required — regardless of role. A DOCENTE token grants access to `/api/cursos/**` but not to `/api/coordinador/**`.
+</Note>
+
+## How to include the token in requests
+
+Pass the token in the `Authorization` header on every protected request:
+
+```bash
+curl -s http://localhost:8080/api/cursos \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
+The header format is exactly: `Authorization: Bearer <token>` — including the word `Bearer` followed by a single space.
+
+## Error responses
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized">
+    Returned when the token is absent, malformed, or has expired. The client must re-authenticate by calling `/api/auth/login` to obtain a new token.
+  </Accordion>
+  <Accordion title="403 Forbidden">
+    Returned when the token is valid but the user's role does not satisfy the access requirement for the requested route. For example, a user with `ROLE_ESTUDIANTE` calling `/api/coordinador/**` will receive a 403.
+  </Accordion>
+</AccordionGroup>
+
+## Security configuration summary
+
+| Setting | Value |
+|---|---|
+| Signing algorithm | HS256 |
+| Token lifetime | 86400000 ms (24 hours) |
+| Session policy | STATELESS |
+| CSRF | Disabled |
+| Password storage | BCrypt |
+| Filter class | `JwtFilter` (OncePerRequestFilter) |

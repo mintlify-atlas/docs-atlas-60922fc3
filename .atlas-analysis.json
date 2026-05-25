@@ -1,0 +1,109 @@
+{
+  "projectType": "api-service",
+  "projectName": "PlataformaEduca",
+  "projectDescription": "A Spring Boot REST API for managing an educational institution — handling user authentication, course scheduling, grade tracking, and role-based dashboards for coordinators, teachers, and students.",
+  "theme": "luma",
+  "primaryColor": "#2563EB",
+  "lightColor": "#EFF6FF",
+  "darkColor": "#1E40AF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/domain-model",
+              "concepts/roles-permissions",
+              "concepts/scheduling"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/coordinator-guide",
+              "guides/teacher-guide",
+              "guides/student-guide"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/setup",
+              "configuration/database",
+              "configuration/security"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Auth",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login"
+            ]
+          },
+          {
+            "group": "Courses & Grades",
+            "pages": [
+              "api/cursos",
+              "api/notas"
+            ]
+          },
+          {
+            "group": "Role Endpoints",
+            "pages": [
+              "api/coordinador",
+              "api/docente",
+              "api/estudiante"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT-based authentication with role-specific access control (Coordinator, Teacher, Student)",
+    "Course catalog management with CRUD operations",
+    "Teacher assignment scheduling linking teachers, courses, classrooms, and academic periods",
+    "Two-level grade management: Evaluaciones (assessments with percentage weight) and Notas (individual student scores)",
+    "Coordinator dashboard with platform-wide statistics",
+    "Automatic user profile creation on registration based on assigned role",
+    "Seeded default data for quick local development",
+    "OpenAPI/Swagger UI documentation at /swagger-ui.html"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register",
+    "POST /api/auth/login",
+    "GET /api/cursos",
+    "POST /api/cursos",
+    "PUT /api/cursos/{id}",
+    "DELETE /api/cursos/{id}",
+    "GET /api/notas",
+    "POST /api/notas",
+    "GET /api/notas/estudiante/{id}",
+    "GET /api/coordinador/dashboard",
+    "POST /api/coordinador/asignar",
+    "GET /api/coordinador/grados",
+    "GET /api/coordinador/asignaciones",
+    "GET /api/coordinador/aulas",
+    "GET /api/docente/mis-cursos",
+    "POST /api/docente/evaluaciones",
+    "POST /api/docente/notas",
+    "GET /api/docente/estadisticas/{asignacionId}",
+    "GET /api/estudiante/mis-cursos",
+    "GET /api/estudiante/reporte-notas"
+  ]
+}

@@ -1,0 +1,138 @@
+---
+title: "Authenticate with PlataformaEduca"
+description: "Register a new user account, obtain a JWT token via login, and include it in requests. Tokens are valid for 24 hours and carry your role claims."
+---
+
+PlataformaEduca uses stateless JWT authentication. Every protected endpoint expects a signed token in the `Authorization` header. Tokens are issued at login, signed with HS256, and expire after 24 hours (86400000 ms). No server-side session state is kept — each request is validated independently.
+
+## Register a new user
+
+Send a `POST` request to `/api/auth/register` with a JSON body containing the new user's details.
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombres": "María",
+    "apellidos": "García López",
+    "email": "maria@example.com",
+    "password": "securepassword",
+    "rol": "DOCENTE"
+  }'
+```
+
+### Request body fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `nombres` | string | Yes | First name(s) of the user. |
+| `apellidos` | string | Yes | Last name(s) of the user. |
+| `email` | string | Yes | Unique email address used to log in. |
+| `password` | string | Yes | Plain-text password; stored as a BCrypt hash. |
+| `rol` | string | Yes | The role to assign. See valid values below. |
+
+### Valid rol values
+
+<Columns cols={2}>
+  <Card title="COORDINADOR" icon="user-tie">
+    Grants access to `/api/coordinador/**` endpoints.
+  </Card>
+  <Card title="DOCENTE" icon="chalkboard-teacher">
+    Grants access to `/api/docente/**` endpoints.
+  </Card>
+  <Card title="ESTUDIANTE" icon="user-graduate">
+    Grants access to `/api/estudiante/**` endpoints.
+  </Card>
+  <Card title="USER / ADMIN" icon="shield">
+    Base roles; `ADMIN` is typically reserved for system administrators.
+  </Card>
+</Columns>
+
+### Successful response
+
+On success, the API returns the created user object with HTTP 200:
+
+```json
+{
+  "id": 5,
+  "nombres": "María",
+  "apellidos": "García López",
+  "email": "maria@example.com",
+  "password": null,
+  "activo": true,
+  "roles": [
+    { "id": 4, "nombre": "DOCENTE" }
+  ]
+}
+```
+
+<Note>
+  Registration automatically creates the corresponding role-specific profile record. Registering with `DOCENTE` creates a `Docente` entry; `ESTUDIANTE` creates an `Estudiante` entry; `COORDINADOR` creates a `Coordinador` entry.
+</Note>
+
+## Log in
+
+Send a `POST` request to `/api/auth/login` with the user's email and password.
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "maria@example.com",
+    "password": "securepassword"
+  }'
+```
+
+### Successful response
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYXJpYUBleGFtcGxlLmNvbSIsInJvbGVzIjpbIlJPTEVfRE9DRU5URSJdLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDA4NjQwMH0.signature",
+  "email": "maria@example.com",
+  "roles": ["ROLE_DOCENTE"]
+}
+```
+
+Store the `token` value — you will include it in every subsequent request.
+
+## Use the token
+
+Include the token in the `Authorization` header as a Bearer token on every protected request:
+
+```bash
+curl -s http://localhost:8080/api/cursos \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
+<Tip>
+  The token contains your email as the subject and a `roles` claim. The API uses the roles claim to enforce access control — no additional lookup is needed per request.
+</Tip>
+
+## Token expiry
+
+Tokens are valid for **24 hours** (86400000 ms) from the time of issue. After expiry, protected requests return `401 Unauthorized`. Re-authenticate by calling `/api/auth/login` again to receive a new token.
+
+## Public vs. protected routes
+
+| Route pattern | Access |
+|---|---|
+| `/api/auth/register` | Public — no token required |
+| `/api/auth/login` | Public — no token required |
+| `/api/cursos/**` | Any authenticated user |
+| `/api/notas/**` | Any authenticated user |
+| `/api/coordinador/**` | COORDINADOR role only |
+| `/api/docente/**` | DOCENTE role only |
+| `/api/estudiante/**` | ESTUDIANTE role only |
+| `/swagger-ui/**` | Public |
+| `/v3/api-docs/**` | Public |
+
+## Common errors
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized">
+    The token is missing, malformed, or has expired. Check that the `Authorization` header is present and that the token has not exceeded its 24-hour lifetime. Re-login to obtain a fresh token.
+  </Accordion>
+  <Accordion title="403 Forbidden">
+    The token is valid but the authenticated user does not have the role required for the requested endpoint. For example, a `DOCENTE` user calling a `/api/coordinador/**` route will receive a 403.
+  </Accordion>
+</AccordionGroup>

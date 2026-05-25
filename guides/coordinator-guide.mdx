@@ -1,0 +1,204 @@
+---
+title: "Coordinator guide: managing your institution"
+description: "Coordinators can view platform statistics, assign teachers to courses and classrooms, and monitor all teacher assignments across academic periods."
+---
+
+The Coordinator is the administrative hub of PlataformaEduca. With this role you have visibility across the entire platform — you can inspect aggregate statistics, browse all available grades and classrooms, assign teachers to specific courses and periods, and verify those assignments at any time. This guide walks you through every action available to coordinators and ends with a recommended workflow.
+
+## Authentication
+
+All coordinator endpoints require a valid JWT token. Obtain one by posting your credentials to the auth endpoint.
+
+<CodeGroup>
+
+```bash request
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "coordinator@school.edu", "password": "yourpassword"}'
+```
+
+```json response
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+</CodeGroup>
+
+Include the token as a `Bearer` header on every subsequent request.
+
+---
+
+## Dashboard statistics
+
+The dashboard endpoint gives you a real-time count of the core entities in the platform.
+
+```bash
+curl -X GET http://localhost:8080/api/coordinador/dashboard \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response**
+
+```json
+{
+  "totalUsuarios": 142,
+  "totalCursos": 18,
+  "totalGrados": 6,
+  "totalAsignaciones": 34
+}
+```
+
+| Field | Description |
+|---|---|
+| `totalUsuarios` | All registered users (students, teachers, coordinators) |
+| `totalCursos` | Active courses on the platform |
+| `totalGrados` | Configured grade/year levels |
+| `totalAsignaciones` | Teacher-course-classroom assignments across all periods |
+
+---
+
+## Viewing available resources
+
+Before creating assignments you should review what grades, classrooms, and existing assignments are already on the platform.
+
+### Grades
+
+```bash
+curl -X GET http://localhost:8080/api/coordinador/grados \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  { "id": 1, "nombre": "Primero de Secundaria", "seccion": "A" },
+  { "id": 2, "nombre": "Segundo de Secundaria", "seccion": "B" }
+]
+```
+
+### Classrooms
+
+```bash
+curl -X GET http://localhost:8080/api/coordinador/aulas \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  { "id": 1, "nombre": "Aula 101", "capacidad": 30, "ubicacion": "Bloque A" },
+  { "id": 2, "nombre": "Aula 205", "capacidad": 25, "ubicacion": "Bloque B" }
+]
+```
+
+### All teacher assignments
+
+```bash
+curl -X GET http://localhost:8080/api/coordinador/asignaciones \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 1,
+    "docente": { "id": 3, "nombre": "Ana Torres" },
+    "curso": { "id": 1, "nombre": "Matemáticas" },
+    "aula": { "id": 1, "nombre": "Aula 101" },
+    "periodo": { "id": 2, "nombre": "2024-I" }
+  }
+]
+```
+
+---
+
+## Creating a teacher assignment
+
+A teacher assignment (`AsignacionDocente`) links a single teacher to a course, a classroom, and an academic period. Each combination must be unique per period.
+
+```bash
+curl -X POST http://localhost:8080/api/coordinador/asignar \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "docente":  { "id": 1 },
+    "curso":    { "id": 1 },
+    "aula":     { "id": 1 },
+    "periodo":  { "id": 1 }
+  }'
+```
+
+<Note>
+All four nested objects are required. Provide only the `id` of each related entity — PlataformaEduca resolves the full records server-side.
+</Note>
+
+On success the API returns the persisted `AsignacionDocente` object with its generated `id`. Teachers can then see this assignment via their own `GET /api/docente/mis-cursos` endpoint.
+
+---
+
+## Course management
+
+Courses can be created, updated, and deleted by any authenticated user. These endpoints are not restricted to the coordinator role.
+
+### Request body
+
+```json
+{
+  "nombre": "Matemáticas",
+  "descripcion": "Álgebra y geometría",
+  "creditos": 4
+}
+```
+
+### Endpoints
+
+<CodeGroup>
+
+```bash create
+curl -X POST http://localhost:8080/api/cursos \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"nombre": "Matemáticas", "descripcion": "Álgebra y geometría", "creditos": 4}'
+```
+
+```bash update
+curl -X PUT http://localhost:8080/api/cursos/1 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"nombre": "Matemáticas Avanzadas", "descripcion": "Álgebra y geometría", "creditos": 4}'
+```
+
+```bash delete
+curl -X DELETE http://localhost:8080/api/cursos/1 \
+  -H "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+<Warning>
+Deleting a course that is referenced by existing assignments or evaluations may cause data integrity errors depending on your database constraints. Verify no active assignments reference the course before deleting.
+</Warning>
+
+---
+
+## Common workflow
+
+<Steps>
+  <Step title="Log in and obtain a JWT token">
+    POST to `/api/auth/login` with your coordinator credentials. Copy the returned `token` for use in subsequent requests.
+  </Step>
+  <Step title="Check dashboard statistics">
+    GET `/api/coordinador/dashboard` to see current platform-wide counts and confirm the system state before making changes.
+  </Step>
+  <Step title="List available classrooms and grades">
+    GET `/api/coordinador/aulas` and `/api/coordinador/grados` to note the `id` values you will need when creating an assignment.
+  </Step>
+  <Step title="Create or verify a course exists">
+    POST to `/api/cursos` if the course does not yet exist. Note the returned `id`.
+  </Step>
+  <Step title="Create a teacher assignment">
+    POST to `/api/coordinador/asignar` with the `docente`, `curso`, `aula`, and `periodo` IDs. The API returns the new `AsignacionDocente` record.
+  </Step>
+  <Step title="Verify the assignment">
+    GET `/api/coordinador/asignaciones` and confirm the new record appears in the list.
+  </Step>
+</Steps>

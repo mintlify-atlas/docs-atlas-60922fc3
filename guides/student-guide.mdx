@@ -1,0 +1,141 @@
+---
+title: "Student guide: viewing courses and grades"
+description: "Students (Estudiante) can view enrolled courses and retrieve a complete grade report showing numeric scores and teacher observations for each evaluation."
+---
+
+Students in PlataformaEduca — referred to as **Estudiante** — have a read-oriented role focused on visibility into their academic data. Once your account is created (either by self-registering with `role=ESTUDIANTE` or by receiving credentials from your coordinator), you can log in, browse the courses available on the platform, and retrieve a complete report of every grade recorded for you — including the teacher's written observations.
+
+## Your student profile
+
+When a student account is created, the platform stores additional academic information alongside the base user record:
+
+| Field | Description |
+|---|---|
+| `codigo` | Your unique student code assigned by the institution |
+| `grado` | Your grade or year level (e.g., "Primero de Secundaria") |
+| `usuario` | The linked authentication user record |
+
+---
+
+## Authentication
+
+Obtain a JWT token by posting your credentials to the auth endpoint.
+
+<CodeGroup>
+
+```bash request
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "student@school.edu", "password": "yourpassword"}'
+```
+
+```json response
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+</CodeGroup>
+
+Pass this token as a `Bearer` header on every subsequent request. The server uses the email embedded in the token to identify you without requiring you to supply your own ID.
+
+---
+
+## Viewing enrolled courses
+
+Retrieve the list of active course assignments currently on the platform.
+
+```bash
+curl -X GET http://localhost:8080/api/estudiante/mis-cursos \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 1,
+    "curso":   { "id": 1, "nombre": "Matemáticas" },
+    "aula":    { "id": 2, "nombre": "Aula 205" },
+    "periodo": { "id": 1, "nombre": "2024-I" }
+  },
+  {
+    "id": 2,
+    "curso":   { "id": 3, "nombre": "Ciencias Naturales" },
+    "aula":    { "id": 3, "nombre": "Aula 301" },
+    "periodo": { "id": 1, "nombre": "2024-I" }
+  }
+]
+```
+
+<Note>
+This endpoint currently returns all active assignments on the platform rather than filtering by your personal enrollment. This is a simplified implementation — a future version will scope results to your specific grade level and period.
+</Note>
+
+---
+
+## Viewing your grade report
+
+The grade report returns every `Nota` record associated with your account. Each entry shows your numeric score, the teacher's observation, and the full `Evaluacion` that was graded (including its title, weight, and date).
+
+```bash
+curl -X GET http://localhost:8080/api/estudiante/reporte-notas \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 12,
+    "nota": 18.5,
+    "observacion": "Excelente desempeño",
+    "evaluacion": {
+      "id": 1,
+      "titulo": "Examen Parcial",
+      "porcentaje": 30.0,
+      "fecha": "2024-06-15",
+      "curso": { "id": 1, "nombre": "Matemáticas" }
+    }
+  },
+  {
+    "id": 17,
+    "nota": 15.0,
+    "observacion": "Buen trabajo, revisar álgebra",
+    "evaluacion": {
+      "id": 2,
+      "titulo": "Tarea 1",
+      "porcentaje": 10.0,
+      "fecha": "2024-05-20",
+      "curso": { "id": 1, "nombre": "Matemáticas" }
+    }
+  }
+]
+```
+
+The `porcentaje` field on each evaluation tells you how much that activity contributes to your final grade. A score on an evaluation with `"porcentaje": 30.0` counts for 30% of your total.
+
+<Tip>
+You will see one `Nota` entry for each evaluation your teacher has graded you on. If an evaluation does not appear in your report, the teacher has not yet recorded your score for that activity.
+</Tip>
+
+---
+
+## Common workflow
+
+<Steps>
+  <Step title="Register or receive credentials">
+    Self-register via the platform's registration endpoint with `"role": "ESTUDIANTE"`, or ask your coordinator for your account credentials.
+  </Step>
+  <Step title="Log in and obtain a JWT token">
+    POST to `/api/auth/login` with your email and password. Save the returned `token` — you will need it for every request.
+  </Step>
+  <Step title="View available courses">
+    GET `/api/estudiante/mis-cursos` to see the courses and classrooms active in the current period.
+  </Step>
+  <Step title="Retrieve your grade report">
+    GET `/api/estudiante/reporte-notas` to see all grades your teachers have recorded for you, along with their observations and the weight of each evaluation.
+  </Step>
+</Steps>
+
+<Warning>
+Your JWT token expires after a set period. If you receive a `401 Unauthorized` response, log in again to obtain a fresh token.
+</Warning>

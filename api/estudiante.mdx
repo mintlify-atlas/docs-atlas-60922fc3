@@ -1,0 +1,117 @@
+---
+title: "Student API — courses and grade report"
+description: "GET /api/estudiante — restricted to ESTUDIANTE role. View enrolled courses and retrieve a complete personal grade report with scores and teacher observations."
+---
+
+All `/api/estudiante` endpoints require a JWT issued to a user with the `ESTUDIANTE` role. The platform resolves the student's identity from the email claim in the JWT — using `EstudianteRepository.findByUsuarioEmail()` — so each student can only retrieve their own data. Requests from users without the `ESTUDIANTE` role receive `403 Forbidden`.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from `/api/auth/login`. The authenticated user must have the `ESTUDIANTE` role.
+</ParamField>
+
+---
+
+<AccordionGroup>
+
+<Accordion title="GET /api/estudiante/mis-cursos — view enrolled courses" defaultOpen={false}>
+
+Returns course assignment records available to the student. The response includes `Curso`, `Aula`, `Docente`, and `Periodo` details for each assignment.
+
+<Note>
+  The current implementation returns all `AsignacionDocente` records (`findAll`) rather than filtering by student enrollment. This is a known simplification in the source code and may be revised in a future release.
+</Note>
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/estudiante/mis-cursos \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+<Accordion title="GET /api/estudiante/reporte-notas — view grade report" defaultOpen={false}>
+
+Returns all `Nota` records for the authenticated student. The student's identity is resolved automatically from the JWT email — no student ID is required in the request. Each `Nota` includes the full `Evaluacion` object so the student can see the assessment title, weight, date, and course alongside their score and any teacher comment.
+
+### Response
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the grade record.
+</ResponseField>
+
+<ResponseField name="nota" type="number">
+  Numeric score the student received.
+</ResponseField>
+
+<ResponseField name="observacion" type="string">
+  Teacher comment attached to this grade, if any.
+</ResponseField>
+
+<ResponseField name="evaluacion" type="object">
+  The evaluation this grade belongs to.
+
+  <Expandable title="evaluacion properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the evaluation.
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Title of the evaluation, for example `"Examen Parcial"`.
+    </ResponseField>
+    <ResponseField name="porcentaje" type="number">
+      Weight of this evaluation toward the final grade, as a decimal percentage.
+    </ResponseField>
+    <ResponseField name="fecha" type="string">
+      Evaluation date in ISO 8601 format.
+    </ResponseField>
+    <ResponseField name="curso" type="object">
+      The course this evaluation is associated with.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="estudiante" type="object">
+  The student record associated with this grade.
+</ResponseField>
+
+### Example response
+
+```json
+[
+  {
+    "id": 1,
+    "nota": 18.5,
+    "observacion": "Excelente desempeño",
+    "evaluacion": {
+      "id": 1,
+      "titulo": "Examen Parcial",
+      "porcentaje": 30.0,
+      "fecha": "2024-06-15"
+    }
+  }
+]
+```
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/estudiante/reporte-notas \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `401 Unauthorized` | The `Authorization` header is missing or the token is expired or invalid. |
+| `403 Forbidden` | The token is valid but the authenticated user does not have the `ESTUDIANTE` role. |

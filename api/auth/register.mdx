@@ -1,0 +1,139 @@
+---
+title: "POST /api/auth/register — create a new user"
+description: "POST /api/auth/register — creates a user and a role-specific profile (Docente, Estudiante, or Coordinador). Returns the new Usuario object."
+---
+
+The `/api/auth/register` endpoint creates a new user account in PlataformaEduca. In addition to persisting the core `Usuario` record, the API automatically creates the corresponding role-specific profile record — a `Docente`, `Estudiante`, or `Coordinador` row — depending on the value of the `rol` field. This means a single request is sufficient to fully onboard a new user with their associated profile data.
+
+## Endpoint
+
+```
+POST /api/auth/register
+```
+
+**Authentication:** None required — this is a public endpoint.
+
+**Content-Type:** `application/json`
+
+## Request body
+
+<ParamField body="nombres" type="string" required>
+  First name(s) of the user.
+</ParamField>
+
+<ParamField body="apellidos" type="string" required>
+  Last name(s) of the user.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address of the user. Must be unique across all accounts; this value is used as the login identifier.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Plain-text password provided at registration. The API stores this as a BCrypt hash and never returns it in responses.
+</ParamField>
+
+<ParamField body="rol" type="string" required>
+  Role to assign to the new user. Valid values: `COORDINADOR`, `DOCENTE`, `ESTUDIANTE`, `USER`, `ADMIN`. Determines which role-specific profile record is created automatically.
+</ParamField>
+
+### Example request
+
+```json
+{
+  "nombres": "María",
+  "apellidos": "García",
+  "email": "maria.garcia@escuela.edu",
+  "password": "securePassword123",
+  "rol": "DOCENTE"
+}
+```
+
+```bash
+curl --request POST \
+  --url https://your-api-host/api/auth/register \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "nombres": "María",
+    "apellidos": "García",
+    "email": "maria.garcia@escuela.edu",
+    "password": "securePassword123",
+    "rol": "DOCENTE"
+  }'
+```
+
+## Response
+
+### 200 OK
+
+Returns the newly created `Usuario` object. The `password` field is nulled out in the response for security.
+
+<ResponseField name="id" type="integer">
+  Auto-generated unique identifier for the user.
+</ResponseField>
+
+<ResponseField name="nombres" type="string">
+  First name(s) of the registered user.
+</ResponseField>
+
+<ResponseField name="apellidos" type="string">
+  Last name(s) of the registered user.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address of the registered user.
+</ResponseField>
+
+<ResponseField name="password" type="null">
+  Always `null` in the response. The BCrypt hash is never exposed through the API.
+</ResponseField>
+
+<ResponseField name="activo" type="boolean">
+  Account status. Always `true` for newly registered accounts.
+</ResponseField>
+
+<ResponseField name="roles" type="array">
+  List of role objects assigned to the user.
+
+  <Expandable title="roles[]">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the role.
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Role name, matching the value provided in the `rol` field of the request.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example success response
+
+```json
+{
+  "id": 5,
+  "nombres": "María",
+  "apellidos": "García",
+  "email": "maria.garcia@escuela.edu",
+  "password": null,
+  "activo": true,
+  "roles": [
+    { "id": 4, "nombre": "DOCENTE" }
+  ]
+}
+```
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `500 Internal Server Error` | The provided email address is already registered, or another validation error occurred. The response body is a JSON map with an `"error"` key containing the error message. |
+
+## Side effects
+
+On a successful registration, a role-specific profile record is automatically created in the corresponding table:
+
+| `rol` value | Profile table |
+|-------------|---------------|
+| `DOCENTE` | `docentes` |
+| `ESTUDIANTE` | `estudiantes` |
+| `COORDINADOR` | `coordinadores` |
+| `USER` / `ADMIN` | No additional profile record |

@@ -1,0 +1,75 @@
+---
+title: "User roles and API permissions"
+description: "PlataformaEduca has five roles. COORDINADOR, DOCENTE, and ESTUDIANTE each unlock dedicated API endpoints enforced by Spring Security's method security."
+---
+
+PlataformaEduca uses role-based access control enforced at the Spring Security layer. Roles are stored in the `roles` table and linked to users through the `usuario_roles` join table. Every JWT token issued after login carries a `roles` claim that Spring Security reads on each request to decide whether to allow or reject it.
+
+## The five roles
+
+| Role | Description |
+|------|-------------|
+| `USER` | Base role. Limited access; not used for operational workflows. |
+| `ADMIN` | System administration. Reserved for platform management. |
+| `COORDINADOR` | Academic coordinator. Manages scheduling and assignments. |
+| `DOCENTE` | Teacher. Creates evaluations and records grades. |
+| `ESTUDIANTE` | Student. Views their own courses and grades. |
+
+The three primary operational roles are `COORDINADOR`, `DOCENTE`, and `ESTUDIANTE`. Most API workflows involve one of these three roles.
+
+## Endpoint permissions
+
+The table below shows which roles can access each endpoint group. A check in the "Any authenticated" column means the endpoint requires a valid token but does not restrict by role.
+
+| Endpoint group | Public | Any authenticated | COORDINADOR | DOCENTE | ESTUDIANTE |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `POST /api/auth/**` | ✓ | | | | |
+| `GET/POST/PUT/DELETE /api/cursos/**` | | ✓ | ✓ | ✓ | ✓ |
+| `GET/POST /api/notas/**` | | ✓ | ✓ | ✓ | ✓ |
+| `GET/POST /api/coordinador/**` | | | ✓ | | |
+| `GET/POST /api/docente/**` | | | | ✓ | |
+| `GET /api/estudiante/**` | | | | | ✓ |
+
+<Note>
+The `/api/auth/**` endpoints (registration and login) are the only publicly accessible routes. All other endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
+</Note>
+
+## Role assignment at registration
+
+Roles are set at registration time via `POST /api/auth/register` and cannot be changed through the API afterward. The role you supply in the registration request body determines which profile record is created automatically.
+
+| Role in request | Profile record created |
+|---|---|
+| `DOCENTE` | A `Docente` record linked to the new `Usuario` |
+| `ESTUDIANTE` | An `Estudiante` record linked to the new `Usuario` |
+| `COORDINADOR` | A `Coordinador` record linked to the new `Usuario` |
+
+<Warning>
+Attempting to change a user's role after registration is not supported by the API. If the wrong role was assigned, the user account must be recreated.
+</Warning>
+
+## Roles in the JWT token
+
+After a successful login via `POST /api/auth/login`, the API returns a JWT token. The token's payload includes a `roles` array containing the user's role names prefixed with `ROLE_`:
+
+```json
+{
+  "sub": "teacher@school.edu",
+  "roles": ["ROLE_DOCENTE"],
+  "iat": 1716600000,
+  "exp": 1716686400
+}
+```
+
+Spring Security reads the `roles` claim on every request to enforce endpoint-level permissions. You do not need to pass the role separately — the token carries it.
+
+## 401 vs 403 responses
+
+| Status | Meaning | Common cause |
+|--------|---------|--------------|
+| `401 Unauthorized` | Token is missing, expired, or invalid | No `Authorization` header; token has expired |
+| `403 Forbidden` | Token is valid but the role is not permitted | A `DOCENTE` token calling a `COORDINADOR`-only endpoint |
+
+<Tip>
+If you receive a 403 and your token is valid, check that you are calling the correct endpoint for your role. Teacher workflows live under `/api/docente/**`, not `/api/coordinador/**`.
+</Tip>

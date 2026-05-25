@@ -1,0 +1,230 @@
+---
+title: "Coordinator API — dashboard, assignments, and resources"
+description: "GET/POST /api/coordinador — restricted to COORDINADOR role. Access platform stats, create teacher assignments, and list grades, classrooms, and assignments."
+---
+
+All endpoints under `/api/coordinador` require a valid JWT token issued to a user with the `COORDINADOR` role. Requests that carry a token for a different role receive `403 Forbidden`. Requests with a missing or invalid token receive `401 Unauthorized`. Include the token in the `Authorization` header of every request as shown in the examples below.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from `/api/auth/login`. The authenticated user must have the `COORDINADOR` role.
+</ParamField>
+
+---
+
+<AccordionGroup>
+
+<Accordion title="GET /api/coordinador/dashboard — platform statistics" defaultOpen={false}>
+
+Returns platform-wide aggregate counts for users, courses, grade levels, and teacher assignments. Useful for building a coordinator overview screen.
+
+**No request parameters.**
+
+### Response
+
+<ResponseField name="totalUsuarios" type="integer">
+  Total number of registered users across all roles.
+</ResponseField>
+
+<ResponseField name="totalCursos" type="integer">
+  Total number of courses in the catalog.
+</ResponseField>
+
+<ResponseField name="totalGrados" type="integer">
+  Total number of academic grade levels configured on the platform.
+</ResponseField>
+
+<ResponseField name="totalAsignaciones" type="integer">
+  Total number of teacher-course assignments that have been created.
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "totalUsuarios": 4,
+  "totalCursos": 2,
+  "totalGrados": 2,
+  "totalAsignaciones": 1
+}
+```
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/coordinador/dashboard \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+<Accordion title="POST /api/coordinador/asignar — create teacher assignment" defaultOpen={false}>
+
+Assigns a teacher (`Docente`) to a course (`Curso`) within a specific classroom (`Aula`) and academic period (`Periodo`). All four references must point to existing records; the API returns the fully created `AsignacionDocente` object including the generated `id`.
+
+### Request body
+
+<ParamField body="docente" type="object" required>
+  Reference to an existing `Docente` record. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+<ParamField body="curso" type="object" required>
+  Reference to an existing `Curso` record. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+<ParamField body="aula" type="object" required>
+  Reference to an existing `Aula` record. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+<ParamField body="periodo" type="object" required>
+  Reference to an existing `Periodo` record. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+### Example request
+
+```json
+{
+  "docente": { "id": 1 },
+  "curso": { "id": 1 },
+  "aula": { "id": 1 },
+  "periodo": { "id": 1 }
+}
+```
+
+### curl
+
+```bash
+curl --request POST \
+  --url https://your-api-host/api/coordinador/asignar \
+  --header "Authorization: Bearer YOUR_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "docente": { "id": 1 },
+    "curso": { "id": 1 },
+    "aula": { "id": 1 },
+    "periodo": { "id": 1 }
+  }'
+```
+
+</Accordion>
+
+<Accordion title="GET /api/coordinador/grados — list academic grade levels" defaultOpen={false}>
+
+Returns all `Grado` records configured on the platform. Each record represents an academic grade level with an optional section label.
+
+### Response
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the grade level.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Human-readable grade level name, for example `"1ro Secundaria"`.
+</ResponseField>
+
+<ResponseField name="seccion" type="string">
+  Section label within the grade, for example `"A"`.
+</ResponseField>
+
+### Example response
+
+```json
+[
+  { "id": 1, "nombre": "1ro Secundaria", "seccion": "A" },
+  { "id": 2, "nombre": "2do Secundaria", "seccion": "B" }
+]
+```
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/coordinador/grados \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+<Accordion title="GET /api/coordinador/asignaciones — list all teacher assignments" defaultOpen={false}>
+
+Returns all `AsignacionDocente` records. Each record includes the full nested `Docente`, `Curso`, `Aula`, and `Periodo` objects, giving a complete view of every teacher-course-classroom-period combination.
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/coordinador/asignaciones \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+<Accordion title="GET /api/coordinador/aulas — list classrooms" defaultOpen={false}>
+
+Returns all `Aula` records. Use this endpoint to populate classroom selectors when creating a new teacher assignment.
+
+### Response
+
+<ResponseField name="id" type="integer">
+  Unique identifier for the classroom.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Classroom name, for example `"Aula 101"`.
+</ResponseField>
+
+<ResponseField name="capacidad" type="integer">
+  Maximum student capacity for the classroom.
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string">
+  Physical location description, for example `"Pabellón A"`.
+</ResponseField>
+
+### Example response
+
+```json
+[
+  { "id": 1, "nombre": "Aula 101", "capacidad": 30, "ubicacion": "Pabellón A" },
+  { "id": 2, "nombre": "Aula 202", "capacidad": 25, "ubicacion": "Pabellón B" }
+]
+```
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/coordinador/aulas \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `401 Unauthorized` | The `Authorization` header is missing or the token is expired or invalid. |
+| `403 Forbidden` | The token is valid but the authenticated user does not have the `COORDINADOR` role. |

@@ -1,0 +1,224 @@
+---
+title: "Grades API — record and retrieve student scores"
+description: "GET, POST /api/notas — list all grades, record a new grade, or filter grades by student ID. Any authenticated user can read and write grades."
+---
+
+The Grades (Notas) API records individual student scores against specific evaluations. Any authenticated user can both read and write grade data through this endpoint. For role-scoped grade recording — where only the assigned teacher may post grades — use the `/api/docente/notas` endpoint instead.
+
+**Base URL:** `/api/notas`
+
+**Auth:** All endpoints require a `Bearer` token in the `Authorization` header.
+
+<Note>
+  **Evaluacion vs. Nota** — these are two distinct entities in PlataformaEduca's grading model. An `Evaluacion` is the *assessment* itself: it defines a title, a percentage weight within the course, a date, and which course and teacher assignment it belongs to. A `Nota` is a *student's score on that assessment*: it records the numeric grade and an optional teacher comment, linking one `Evaluacion` to one `Estudiante`. In short, one `Evaluacion` can have many `Nota` records — one per enrolled student.
+</Note>
+
+---
+
+<Tabs>
+  <Tab title="GET /api/notas">
+    ## List all grades
+
+    Returns every `Nota` record in the system. No filtering is applied; use `GET /api/notas/estudiante/{id}` to scope results to a single student.
+
+    ### Response fields
+
+    <ResponseField name="id" type="integer">
+      Unique grade record ID.
+    </ResponseField>
+
+    <ResponseField name="nota" type="number">
+      The numeric score (e.g. `18.5`).
+    </ResponseField>
+
+    <ResponseField name="observacion" type="string">
+      Optional teacher comment recorded alongside the grade.
+    </ResponseField>
+
+    <ResponseField name="evaluacion" type="object">
+      The linked assessment. Contains the following properties:
+
+      <Expandable title="evaluacion properties">
+        <ResponseField name="evaluacion.id" type="integer">
+          Assessment ID.
+        </ResponseField>
+        <ResponseField name="evaluacion.titulo" type="string">
+          Assessment title.
+        </ResponseField>
+        <ResponseField name="evaluacion.porcentaje" type="number">
+          Percentage weight of this assessment within the course.
+        </ResponseField>
+        <ResponseField name="evaluacion.fecha" type="string">
+          Assessment date (ISO 8601 format).
+        </ResponseField>
+        <ResponseField name="evaluacion.curso" type="object">
+          The `Curso` this assessment belongs to.
+        </ResponseField>
+        <ResponseField name="evaluacion.asignacionDocente" type="object">
+          The teacher assignment associated with this assessment.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="estudiante" type="object">
+      The student who received this grade. Contains the following properties:
+
+      <Expandable title="estudiante properties">
+        <ResponseField name="estudiante.id" type="integer">
+          Student record ID.
+        </ResponseField>
+        <ResponseField name="estudiante.codigo" type="string">
+          Institutional student code.
+        </ResponseField>
+        <ResponseField name="estudiante.usuario" type="object">
+          The linked `Usuario` (user account).
+        </ResponseField>
+        <ResponseField name="estudiante.grado" type="object">
+          The grade level or classroom the student belongs to.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request GET \
+      --url http://localhost:8080/api/notas \
+      --header 'Authorization: Bearer <your-token>'
+    ```
+
+    ```json Response
+    [
+      {
+        "id": 1,
+        "nota": 18.5,
+        "observacion": "Excelente desempeño",
+        "evaluacion": {
+          "id": 1,
+          "titulo": "Examen Parcial",
+          "porcentaje": 30,
+          "fecha": "2026-05-10",
+          "curso": { "id": 1, "nombre": "Matemáticas" },
+          "asignacionDocente": { "id": 2 }
+        },
+        "estudiante": {
+          "id": 1,
+          "codigo": "EST-001",
+          "usuario": { "id": 5, "nombre": "Ana García" },
+          "grado": { "id": 3, "nombre": "3° Secundaria" }
+        }
+      }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="POST /api/notas">
+    ## Record a grade
+
+    Creates a new `Nota` record linking a student to an evaluation with a numeric score. Reference existing records by their `id`; Hibernate will resolve the full objects from the database.
+
+    <Warning>
+      Both `evaluacion.id` and `estudiante.id` must reference records that already exist. If either ID is invalid, Hibernate will throw a constraint error and the request will fail.
+    </Warning>
+
+    ### Request body
+
+    <ParamField body="nota" type="number" required>
+      The numeric score to record (e.g. `18.5`).
+    </ParamField>
+
+    <ParamField body="observacion" type="string">
+      Optional teacher comment or observation.
+    </ParamField>
+
+    <ParamField body="evaluacion" type="object" required>
+      Reference to an existing `Evaluacion` by ID: `{ "id": 1 }`.
+    </ParamField>
+
+    <ParamField body="estudiante" type="object" required>
+      Reference to an existing `Estudiante` by ID: `{ "id": 1 }`.
+    </ParamField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request POST \
+      --url http://localhost:8080/api/notas \
+      --header 'Authorization: Bearer <your-token>' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "nota": 18.5,
+        "observacion": "Excelente desempeño",
+        "evaluacion": { "id": 1 },
+        "estudiante": { "id": 1 }
+      }'
+    ```
+
+    ```json Response
+    {
+      "id": 42,
+      "nota": 18.5,
+      "observacion": "Excelente desempeño",
+      "evaluacion": { "id": 1 },
+      "estudiante": { "id": 1 }
+    }
+    ```
+  </Tab>
+
+  <Tab title="GET /api/notas/estudiante/{id}">
+    ## Get grades for a student
+
+    Returns all `Nota` records where `estudiante.id` matches the given value. The filter is applied via a JPQL query on the repository layer — the result shape is identical to `GET /api/notas` but scoped to a single student.
+
+    <Info>
+      The `id` path parameter is the `Estudiante` entity ID, not the `Usuario` (user account) ID. A student's `Estudiante` ID is included in the grade records returned by `GET /api/notas` under the `estudiante.id` field.
+    </Info>
+
+    ### Path parameter
+
+    <ParamField path="id" type="integer" required>
+      The `Estudiante` ID to filter grades by.
+    </ParamField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request GET \
+      --url http://localhost:8080/api/notas/estudiante/1 \
+      --header 'Authorization: Bearer <your-token>'
+    ```
+
+    ```json Response
+    [
+      {
+        "id": 42,
+        "nota": 18.5,
+        "observacion": "Excelente desempeño",
+        "evaluacion": {
+          "id": 1,
+          "titulo": "Examen Parcial",
+          "porcentaje": 30,
+          "fecha": "2026-05-10",
+          "curso": { "id": 1, "nombre": "Matemáticas" },
+          "asignacionDocente": { "id": 2 }
+        },
+        "estudiante": {
+          "id": 1,
+          "codigo": "EST-001",
+          "usuario": { "id": 5, "nombre": "Ana García" },
+          "grado": { "id": 3, "nombre": "3° Secundaria" }
+        }
+      }
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Error codes
+
+| Status | Meaning |
+|--------|---------|
+| `401 Unauthorized` | The `Authorization` header is missing or the token is invalid. |
+| Hibernate constraint error | `evaluacion.id` or `estudiante.id` does not reference an existing record. Ensure both entities exist before posting a grade. |

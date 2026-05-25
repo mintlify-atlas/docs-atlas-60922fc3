@@ -1,0 +1,75 @@
+---
+title: "PlataformaEduca: Educational Institution REST API"
+description: "PlataformaEduca is a Spring Boot REST API for schools with JWT auth, role-based access, course scheduling, and a two-level grade tracking system."
+---
+
+PlataformaEduca is a backend REST API built with Spring Boot and Java 21 that provides everything needed to manage an educational institution. It handles multi-role user registration and JWT authentication, a full course catalog, teacher scheduling across classrooms and academic periods, and a two-level grade management system for evaluations and student scores.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get the API running locally and make your first authenticated request in minutes.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how to register, log in, and include JWT tokens in your API requests.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/register">
+    Explore every endpoint — request bodies, response shapes, and error codes.
+  </Card>
+  <Card title="Role Guides" icon="users" href="/guides/coordinator-guide">
+    Step-by-step workflows for coordinators, teachers, and students.
+  </Card>
+</CardGroup>
+
+## What PlataformaEduca provides
+
+PlataformaEduca exposes a stateless JSON REST API secured with JWT tokens. Every user is assigned one of three primary roles — **Coordinator**, **Teacher** (Docente), or **Student** (Estudiante) — and the API enforces role-based access on every protected route.
+
+<CardGroup cols={3}>
+  <Card title="Multi-role auth" icon="shield-check">
+    JWT-secured login with automatic profile creation per role on registration.
+  </Card>
+  <Card title="Course management" icon="book">
+    Full CRUD for courses — create, list, update, and delete course records.
+  </Card>
+  <Card title="Teacher scheduling" icon="calendar">
+    Assign teachers to courses, classrooms, and academic periods through a single scheduling entity.
+  </Card>
+  <Card title="Grade tracking" icon="chart-bar">
+    Two-level model: weighted evaluations plus individual student scores per evaluation.
+  </Card>
+  <Card title="Coordinator dashboard" icon="gauge">
+    Platform-wide statistics covering users, courses, grades, and assignments.
+  </Card>
+  <Card title="OpenAPI docs" icon="file-code">
+    Interactive Swagger UI available at `/swagger-ui.html` on any running instance.
+  </Card>
+</CardGroup>
+
+## How the roles work
+
+| Role | Key capabilities |
+|------|-----------------|
+| **Coordinator** | View platform stats, manage teacher assignments, list grades and classrooms |
+| **Teacher (Docente)** | View assigned courses, create evaluations, record student grades |
+| **Student (Estudiante)** | View enrolled courses, access personal grade report |
+
+<Note>
+All endpoints except `/api/auth/register` and `/api/auth/login` require a valid JWT token in the `Authorization: Bearer <token>` header.
+</Note>
+
+## Next steps
+
+<Steps>
+  <Step title="Run the API locally">
+    Follow the [Quickstart](/quickstart) to clone the repo, configure MySQL, and boot the server.
+  </Step>
+  <Step title="Authenticate">
+    Register a user and obtain a JWT token as described in the [Authentication](/authentication) guide.
+  </Step>
+  <Step title="Explore by role">
+    Choose the guide that matches your use case: [Coordinator](/guides/coordinator-guide), [Teacher](/guides/teacher-guide), or [Student](/guides/student-guide).
+  </Step>
+  <Step title="Browse the API reference">
+    See every endpoint with full request/response schemas in the [API Reference](/api/auth/register).
+  </Step>
+</Steps>

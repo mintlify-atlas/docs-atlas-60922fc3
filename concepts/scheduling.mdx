@@ -1,0 +1,134 @@
+---
+title: "Course scheduling with AsignacionDocente"
+description: "AsignacionDocente links a Docente, Curso, Aula, and Periodo into one scheduling record. All teacher workflows and grade tracking reference this entity."
+---
+
+`AsignacionDocente` is the central scheduling entity in PlataformaEduca. Every downstream operation — a teacher viewing their courses, creating an evaluation, or recording a student's grade — traces back to an `AsignacionDocente` record. Understanding how it is created and used is essential before working with the teacher or student-facing endpoints.
+
+## What an assignment links together
+
+A single `AsignacionDocente` record binds four entities into one scheduling unit:
+
+| Entity | Role in the assignment |
+|--------|----------------------|
+| `Docente` | The teacher responsible for the course |
+| `Curso` | The subject being taught |
+| `Aula` | The physical classroom where sessions take place |
+| `Periodo` | The academic period (e.g. semester or trimester) |
+
+Coordinators create assignment records. Once created, teachers reference the assignment ID in all their subsequent actions.
+
+## Prerequisites before creating an assignment
+
+All four referenced entities must exist in the database before you can create an `AsignacionDocente`. Work through this checklist in order:
+
+<Steps>
+  <Step title="Register a Docente user">
+    Call `POST /api/auth/register` with role `DOCENTE`. This creates both the `Usuario` account and the `Docente` profile record. Note the `Docente` profile ID returned — you will use it in the assignment body.
+  </Step>
+  <Step title="Ensure a Curso exists">
+    Call `POST /api/cursos` to create a course if one does not already exist, or `GET /api/cursos` to find an existing one. Note the `Curso` ID.
+  </Step>
+  <Step title="Confirm a classroom is available">
+    Call `GET /api/coordinador/aulas` to list classrooms. Note the `Aula` ID of the room you want to assign.
+  </Step>
+  <Step title="Confirm a Periodo exists">
+    A `Periodo` record must be present in the database. Verify that the correct period exists before proceeding.
+  </Step>
+</Steps>
+
+## Scheduling workflow
+
+The following end-to-end example shows the full lifecycle from coordinator login to a teacher recording a grade.
+
+<Steps>
+  <Step title="Coordinator logs in">
+    Call `POST /api/auth/login` with coordinator credentials to obtain a JWT token.
+  </Step>
+  <Step title="List available classrooms">
+    ```http
+    GET /api/coordinador/aulas
+    Authorization: Bearer <coordinator-token>
+    ```
+  </Step>
+  <Step title="List existing courses">
+    ```http
+    GET /api/cursos
+    Authorization: Bearer <coordinator-token>
+    ```
+  </Step>
+  <Step title="Create the assignment">
+    ```http
+    POST /api/coordinador/asignar
+    Authorization: Bearer <coordinator-token>
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "docente": { "id": 1 },
+      "curso":   { "id": 3 },
+      "aula":    { "id": 2 },
+      "periodo": { "id": 1 }
+    }
+    ```
+
+    The response includes the new `AsignacionDocente` record with its generated `id`. Share or record this ID — the teacher will need it.
+  </Step>
+  <Step title="Teacher views their course load">
+    ```http
+    GET /api/docente/mis-cursos
+    Authorization: Bearer <docente-token>
+    ```
+
+    The response lists all `AsignacionDocente` records where the authenticated teacher is the assigned `Docente`.
+  </Step>
+  <Step title="Teacher creates an evaluation">
+    ```http
+    POST /api/docente/evaluaciones
+    Authorization: Bearer <docente-token>
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "titulo": "Examen Parcial",
+      "porcentaje": 40.0,
+      "fecha": "2026-06-15",
+      "curso": { "id": 3 },
+      "asignacionDocente": { "id": 5 }
+    }
+    ```
+  </Step>
+  <Step title="Teacher records a student's score">
+    ```http
+    POST /api/docente/notas
+    Authorization: Bearer <docente-token>
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "nota": 17.5,
+      "observacion": "Buen desempeño en la sección teórica.",
+      "evaluacion": { "id": 8 },
+      "estudiante": { "id": 12 }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Retrieving assignment statistics
+
+Once a teacher has created evaluations for an assignment, use the statistics endpoint to get a summary:
+
+```http
+GET /api/docente/estadisticas/{asignacionId}
+Authorization: Bearer <docente-token>
+```
+
+The response includes `totalEvaluaciones` — the count of evaluations created for that assignment. Use this to verify that all expected assessments have been recorded before a grading period closes.
+
+<Note>
+Students' course lists are derived from the `AsignacionDocente` records that link their enrolled `Grado` and `Curso` combinations. Students do not have a separate enrollment step; course visibility is a product of the scheduling data.
+</Note>

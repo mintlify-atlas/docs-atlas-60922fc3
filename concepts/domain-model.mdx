@@ -1,0 +1,181 @@
+---
+title: "Domain model: entities and relationships"
+description: "PlataformaEduca's data model centers on Usuario, AsignacionDocente, Evaluacion, and Nota. Understand how entities relate before calling the API."
+---
+
+PlataformaEduca is designed for secondary school management. Its data model reflects the real-world structure of a school: users who fill different roles (teacher, student, coordinator), courses assigned to classrooms and periods, and a two-level grading system that separates assessments from individual scores. Before calling the API, understanding how these entities relate to each other will save you significant debugging time.
+
+## Core entities
+
+### Usuario
+
+The `usuarios` table is the single source of identity for every person in the system. All authentication and authorization flows through `Usuario`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombres` | String | First name(s) |
+| `apellidos` | String | Last name(s) |
+| `email` | String | Unique — used for login |
+| `password` | String | BCrypt-hashed |
+| `activo` | Boolean | Default `true` |
+
+`Usuario` has a `ManyToMany` relationship to `Rol` through the `usuario_roles` join table, fetched eagerly. A single user may hold multiple roles, though in practice each registered user receives one operational role.
+
+### Rol
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombre` | String | Unique |
+
+The five seeded role values are: `USER`, `ADMIN`, `COORDINADOR`, `DOCENTE`, and `ESTUDIANTE`. Role assignment happens at registration and is not modifiable through the API.
+
+### Docente
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `especialidad` | String | Subject specialty |
+| `usuario` | OneToOne | References `usuario_id` |
+
+### Estudiante
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `codigo` | String | Student enrollment code |
+| `grado` | ManyToOne | References `Grado` |
+| `usuario` | OneToOne | References `usuario_id` |
+
+### Coordinador
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `area` | String | Administrative area |
+| `usuario` | OneToOne | References `usuario_id` |
+
+### Curso
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombre` | String | Course name |
+| `descripcion` | String | Course description |
+| `creditos` | Integer | Credit value |
+| `estado` | Boolean | Default `true` (active) |
+
+### Grado
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombre` | String | e.g. `"1ro Secundaria"` |
+| `seccion` | String | e.g. `"A"` |
+
+### Aula
+
+Stored in the `salones` table.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombre` | String | e.g. `"Aula 101"` |
+| `capacidad` | Integer | Maximum occupancy |
+| `ubicacion` | String | e.g. `"Pabellón A"` |
+
+### Periodo
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nombre` | String | Period name |
+| `fechaInicio` | LocalDate | Start date |
+| `fechaFin` | LocalDate | End date |
+| `activo` | Boolean | Whether the period is current |
+
+### AsignacionDocente
+
+Stored in `asignaciones_docentes`. This is the central scheduling entity that ties the entire system together.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `docente` | ManyToOne | References `Docente` |
+| `curso` | ManyToOne | References `Curso` |
+| `aula` | ManyToOne | References `Aula` |
+| `periodo` | ManyToOne | References `Periodo` |
+
+An `AsignacionDocente` record answers the question: *which teacher is delivering which course, in which classroom, during which academic period?* Every downstream operation — creating evaluations, recording grades, viewing a teacher's course load — references an `AsignacionDocente` ID.
+
+### Evaluacion
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `titulo` | String | Assessment title |
+| `porcentaje` | Double | Weight of this assessment (e.g. `0.3` for 30%) |
+| `fecha` | LocalDate | Assessment date |
+| `curso` | ManyToOne | References `Curso` |
+| `asignacionDocente` | ManyToOne | References `AsignacionDocente` |
+
+### Nota
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | Long | Primary key |
+| `nota` | Double | The numeric score |
+| `observacion` | String | Teacher comment |
+| `evaluacion` | ManyToOne | References `Evaluacion` |
+| `estudiante` | ManyToOne | References `Estudiante` |
+
+## Entity relationships
+
+The following describes how the main entities connect:
+
+```
+Usuario ──(OneToOne)──► Docente ──(ManyToOne)──► AsignacionDocente
+Usuario ──(OneToOne)──► Estudiante                       │
+Usuario ──(OneToOne)──► Coordinador          ┌───────────┤
+                                             ▼           │
+Usuario ──(ManyToMany)─► Rol           Docente           │
+                                       Curso ◄───────────┤
+Estudiante ──(ManyToOne)──► Grado      Aula  ◄───────────┤
+                                       Periodo ◄─────────┘
+
+AsignacionDocente ◄──(ManyToOne)── Evaluacion
+                                        │
+                              (ManyToOne)▼
+                                      Nota ──(ManyToOne)──► Estudiante
+```
+
+## The two-level grading model
+
+Grading in PlataformaEduca works in two distinct layers:
+
+1. **Evaluacion** — the assessment itself. A teacher creates an `Evaluacion` tied to an `AsignacionDocente`. Each `Evaluacion` carries a `porcentaje` (weight), so the system can compute weighted final grades. For example, a midterm exam might have `porcentaje: 40.0` (40%) and a final project `porcentaje: 60.0` (60%).
+
+2. **Nota** — the individual student's score on that assessment. A `Nota` record links one `Evaluacion` to one `Estudiante`, storing the numeric `nota` and an optional `observacion` comment from the teacher.
+
+<Note>
+To compute a student's final grade for a course, sum `nota × porcentaje` across all `Nota` records for that student and course within the same `AsignacionDocente`.
+</Note>
+
+This separation means assessments are defined once at the course level and then scored per student, avoiding duplication of assessment metadata.
+
+## User profile duality
+
+Every operational user has two records: a `Usuario` account and a profile record that matches their role.
+
+<Tip>
+When you register a new user via `POST /api/auth/register`, the API automatically creates the matching profile record. You do not need to call a second endpoint.
+</Tip>
+
+| Role registered | Profile table created | Extra field set |
+|---|---|---|
+| `DOCENTE` | `docentes` | `especialidad` |
+| `ESTUDIANTE` | `estudiantes` | `codigo`, `grado` |
+| `COORDINADOR` | `coordinadores` | `area` |
+
+The `Usuario.id` and the profile `id` are independent primary keys. Relationships to `Docente`, `Estudiante`, and `Coordinador` always go through the profile record — not directly through `Usuario` — so always use the profile ID when referencing a teacher or student in scheduling and grading endpoints.

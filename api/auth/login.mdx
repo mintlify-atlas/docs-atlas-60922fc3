@@ -1,0 +1,111 @@
+---
+title: "POST /api/auth/login — authenticate and get JWT"
+description: "POST /api/auth/login — authenticates with email and password. Returns a signed JWT token, the user's email, and their roles. Token is valid for 24 hours."
+---
+
+The `/api/auth/login` endpoint validates a user's credentials and returns a signed JWT token. This token must be included in the `Authorization` header of all subsequent requests to protected endpoints. Tokens are valid for 24 hours (86,400,000 ms); once expired, you must call this endpoint again to obtain a new one.
+
+## Endpoint
+
+```
+POST /api/auth/login
+```
+
+**Authentication:** None required — this is a public endpoint.
+
+**Content-Type:** `application/json`
+
+## Request body
+
+<ParamField body="email" type="string" required>
+  The user's registered email address.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's plain-text password. Always transmit over HTTPS.
+</ParamField>
+
+### Example request
+
+```json
+{
+  "email": "coord@gmail.com",
+  "password": "coord123"
+}
+```
+
+```bash
+curl --request POST \
+  --url https://your-api-host/api/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "coord@gmail.com",
+    "password": "coord123"
+  }'
+```
+
+## Response
+
+### 200 OK
+
+Returns a `JwtResponse` object containing the signed token and the authenticated user's identity.
+
+<ResponseField name="token" type="string">
+  The signed JWT token. Include this in all subsequent requests as `Authorization: Bearer <token>`. The token encodes the user's email and roles, and expires after 24 hours.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The email address of the authenticated user.
+</ResponseField>
+
+<ResponseField name="roles" type="string[]">
+  List of role names assigned to the user, each prefixed with `ROLE_`. For example: `["ROLE_COORDINADOR"]`. These roles control access to protected endpoints.
+</ResponseField>
+
+### Example success response
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjb29yZEBnbWFpbC5jb20iLCJyb2xlcyI6WyJDT09SRElOQURPUiJdLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDA4NjQwMH0.example",
+  "email": "coord@gmail.com",
+  "roles": ["ROLE_COORDINADOR"]
+}
+```
+
+## Using the token
+
+Include the token in the `Authorization` header for every request to a protected endpoint:
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/cursos \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...'
+```
+
+Key details about token usage:
+
+- **Header format:** `Authorization: Bearer <token>`
+- **Expiry:** Tokens expire after 24 hours (86,400,000 ms). Call `/api/auth/login` again to get a fresh token.
+- **Role enforcement:** The roles embedded in the token determine which endpoints you can access. Attempting to reach an endpoint that requires a higher role returns `403 Forbidden`.
+
+<Note>
+  Store the JWT token securely. Do not persist it in `localStorage` in browser environments — prefer `sessionStorage` or an in-memory store to reduce XSS exposure. In server-side or mobile contexts, use a secure secrets store or the platform's secure storage API. Never log or expose the token in client-side error messages.
+</Note>
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `401 Unauthorized` | Invalid email or password. Spring Security returns a 401 with no body or a standard error response. |
+| `403 Forbidden` | The token is valid but the user's role does not have permission to access the requested endpoint. |
+
+## Test accounts
+
+The following seeded accounts are available for development and testing:
+
+| Email | Password | Role |
+|---|---|---|
+| admin@gmail.com | admin123 | ADMIN |
+| coord@gmail.com | coord123 | COORDINADOR |
+| profe@gmail.com | profe123 | DOCENTE |
+| alumno@gmail.com | alumno123 | ESTUDIANTE |

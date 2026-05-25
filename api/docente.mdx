@@ -1,0 +1,197 @@
+---
+title: "Teacher API — courses, evaluations, and grades"
+description: "GET/POST /api/docente — DOCENTE role required. View assigned courses, create weighted evaluations, record student grades, and fetch assignment statistics."
+---
+
+All `/api/docente` endpoints require a JWT issued to a user with the `DOCENTE` role. The platform resolves the authenticated teacher's identity from the email claim in the JWT — using `DocenteRepository.findByUsuarioEmail()` — so each teacher only ever sees or acts on their own assignments. Requests from users without the `DOCENTE` role receive `403 Forbidden`.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from `/api/auth/login`. The authenticated user must have the `DOCENTE` role.
+</ParamField>
+
+---
+
+<AccordionGroup>
+
+<Accordion title="GET /api/docente/mis-cursos — list assigned courses" defaultOpen={false}>
+
+Returns all `AsignacionDocente` records linked to the currently authenticated teacher. The teacher's identity is resolved automatically from the JWT email — you do not pass a teacher ID in the request. Each record includes the associated `Curso`, `Aula`, and `Periodo` details.
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/docente/mis-cursos \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+<Accordion title="POST /api/docente/evaluaciones — create an evaluation" defaultOpen={false}>
+
+Creates a new `Evaluacion` (assessment) for a course assignment. The `porcentaje` field represents the evaluation's weight toward the final grade as a decimal value — for example, `30.0` means 30%. The sum of all evaluation weights for an assignment is not validated server-side, so ensure percentages are managed correctly in your client.
+
+### Request body
+
+<ParamField body="titulo" type="string" required>
+  Title of the evaluation, for example `"Examen Parcial"` or `"Tarea 1"`.
+</ParamField>
+
+<ParamField body="porcentaje" type="number" required>
+  Weight of this evaluation as a decimal percentage, for example `30.0` for 30%.
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  Evaluation date in ISO 8601 format (`YYYY-MM-DD`), for example `"2024-06-15"`.
+</ParamField>
+
+<ParamField body="curso" type="object" required>
+  Reference to the `Curso` this evaluation belongs to. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+<ParamField body="asignacionDocente" type="object" required>
+  Reference to the `AsignacionDocente` this evaluation is tied to. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+### Example request
+
+```json
+{
+  "titulo": "Examen Parcial",
+  "porcentaje": 30.0,
+  "fecha": "2024-06-15",
+  "curso": { "id": 1 },
+  "asignacionDocente": { "id": 1 }
+}
+```
+
+### curl
+
+```bash
+curl --request POST \
+  --url https://your-api-host/api/docente/evaluaciones \
+  --header "Authorization: Bearer YOUR_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "titulo": "Examen Parcial",
+    "porcentaje": 30.0,
+    "fecha": "2024-06-15",
+    "curso": { "id": 1 },
+    "asignacionDocente": { "id": 1 }
+  }'
+```
+
+</Accordion>
+
+<Accordion title="POST /api/docente/notas — record a student grade" defaultOpen={false}>
+
+Records a `Nota` (student score) for a specific `Evaluacion` and `Estudiante`. The `nota` value is stored as a `Double` — use decimal notation for partial scores. The optional `observacion` field lets the teacher attach a comment visible to the student in their grade report.
+
+### Request body
+
+<ParamField body="nota" type="number" required>
+  Numeric score for the student, for example `17.0`.
+</ParamField>
+
+<ParamField body="observacion" type="string">
+  Optional teacher comment attached to this grade, for example `"Buen trabajo"`.
+</ParamField>
+
+<ParamField body="evaluacion" type="object" required>
+  Reference to the `Evaluacion` being graded. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+<ParamField body="estudiante" type="object" required>
+  Reference to the `Estudiante` receiving the grade. Provide only the `id`.
+
+  ```json
+  { "id": 1 }
+  ```
+</ParamField>
+
+### Example request
+
+```json
+{
+  "nota": 17.0,
+  "observacion": "Buen trabajo",
+  "evaluacion": { "id": 1 },
+  "estudiante": { "id": 1 }
+}
+```
+
+### curl
+
+```bash
+curl --request POST \
+  --url https://your-api-host/api/docente/notas \
+  --header "Authorization: Bearer YOUR_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "nota": 17.0,
+    "observacion": "Buen trabajo",
+    "evaluacion": { "id": 1 },
+    "estudiante": { "id": 1 }
+  }'
+```
+
+</Accordion>
+
+<Accordion title="GET /api/docente/estadisticas/{asignacionId} — assignment statistics" defaultOpen={false}>
+
+Returns aggregate statistics for a specific teacher assignment identified by its `id`. Currently reports the total number of evaluations created for that assignment.
+
+### Path parameter
+
+<ParamField path="asignacionId" type="integer" required>
+  The `id` of the `AsignacionDocente` to retrieve statistics for.
+</ParamField>
+
+### Response
+
+<ResponseField name="totalEvaluaciones" type="integer">
+  Number of `Evaluacion` records associated with the specified assignment.
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "totalEvaluaciones": 3
+}
+```
+
+### curl
+
+```bash
+curl --request GET \
+  --url https://your-api-host/api/docente/estadisticas/1 \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `401 Unauthorized` | The `Authorization` header is missing or the token is expired or invalid. |
+| `403 Forbidden` | The token is valid but the authenticated user does not have the `DOCENTE` role. |

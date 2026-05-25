@@ -1,0 +1,196 @@
+---
+title: "Courses API — manage the course catalog"
+description: "GET, POST, PUT, DELETE /api/cursos — list, create, update, and delete courses. Any authenticated user can read; all roles can also create and modify courses."
+---
+
+The Courses API manages PlataformaEduca's institution-wide course catalog. All four CRUD operations — list, create, update, and delete — are available to any authenticated user. No special role is required beyond a valid JWT; the API enforces no further authorization distinctions between staff, teachers, or administrators.
+
+**Base URL:** `/api/cursos`
+
+**Auth:** All endpoints require a `Bearer` token in the `Authorization` header.
+
+---
+
+<Tabs>
+  <Tab title="GET /api/cursos">
+    ## List all courses
+
+    Returns a JSON array of every `Curso` record in the system.
+
+    ### Response fields
+
+    <ResponseField name="id" type="integer">
+      Unique course ID, assigned by the database on creation.
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string">
+      Human-readable course name (e.g. `"Matemáticas"`).
+    </ResponseField>
+
+    <ResponseField name="descripcion" type="string">
+      Short description of the course content.
+    </ResponseField>
+
+    <ResponseField name="creditos" type="integer">
+      Number of academic credit hours assigned to this course.
+    </ResponseField>
+
+    <ResponseField name="estado" type="boolean">
+      Whether the course is currently active. Defaults to `true` on creation.
+    </ResponseField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request GET \
+      --url http://localhost:8080/api/cursos \
+      --header 'Authorization: Bearer <your-token>'
+    ```
+
+    ```json Response
+    [
+      {
+        "id": 1,
+        "nombre": "Matemáticas",
+        "descripcion": "Álgebra y geometría",
+        "creditos": 4,
+        "estado": true
+      },
+      {
+        "id": 2,
+        "nombre": "Comunicación",
+        "descripcion": "Lenguaje y redacción",
+        "creditos": 3,
+        "estado": true
+      }
+    ]
+    ```
+  </Tab>
+
+  <Tab title="POST /api/cursos">
+    ## Create a course
+
+    Creates a new `Curso` record. The `estado` field is set to `true` automatically; you do not need to include it in the request body.
+
+    ### Request body
+
+    <ParamField body="nombre" type="string" required>
+      Course name.
+    </ParamField>
+
+    <ParamField body="descripcion" type="string" required>
+      Short description of the course content.
+    </ParamField>
+
+    <ParamField body="creditos" type="integer" required>
+      Number of academic credit hours.
+    </ParamField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request POST \
+      --url http://localhost:8080/api/cursos \
+      --header 'Authorization: Bearer <your-token>' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "nombre": "Programación",
+        "descripcion": "Fundamentos de programación",
+        "creditos": 4
+      }'
+    ```
+
+    ```json Response
+    {
+      "id": 3,
+      "nombre": "Programación",
+      "descripcion": "Fundamentos de programación",
+      "creditos": 4,
+      "estado": true
+    }
+    ```
+  </Tab>
+
+  <Tab title="PUT /api/cursos/{id}">
+    ## Update a course
+
+    Replaces the `nombre`, `descripcion`, and `creditos` fields of an existing course. Returns the full updated `Curso` object.
+
+    ### Path parameter
+
+    <ParamField path="id" type="integer" required>
+      The ID of the course to update.
+    </ParamField>
+
+    ### Request body
+
+    <ParamField body="nombre" type="string" required>
+      Updated course name.
+    </ParamField>
+
+    <ParamField body="descripcion" type="string" required>
+      Updated description.
+    </ParamField>
+
+    <ParamField body="creditos" type="integer" required>
+      Updated credit hours.
+    </ParamField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request PUT \
+      --url http://localhost:8080/api/cursos/3 \
+      --header 'Authorization: Bearer <your-token>' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "nombre": "Programación Avanzada",
+        "descripcion": "Estructuras de datos y algoritmos",
+        "creditos": 5
+      }'
+    ```
+
+    ```json Response
+    {
+      "id": 3,
+      "nombre": "Programación Avanzada",
+      "descripcion": "Estructuras de datos y algoritmos",
+      "creditos": 5,
+      "estado": true
+    }
+    ```
+  </Tab>
+
+  <Tab title="DELETE /api/cursos/{id}">
+    ## Delete a course
+
+    Permanently removes a course from the catalog. Returns a plain-text confirmation string.
+
+    ### Path parameter
+
+    <ParamField path="id" type="integer" required>
+      The ID of the course to delete.
+    </ParamField>
+
+    ### Example
+
+    ```bash cURL
+    curl --request DELETE \
+      --url http://localhost:8080/api/cursos/3 \
+      --header 'Authorization: Bearer <your-token>'
+    ```
+
+    ```text Response
+    Curso eliminado
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Error codes
+
+| Status | Meaning |
+|--------|---------|
+| `401 Unauthorized` | The `Authorization` header is missing or the token is invalid. |
+| `404 Not Found` | No course exists with the given `id`. Applies to `PUT` and `DELETE`. |

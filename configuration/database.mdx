@@ -1,0 +1,206 @@
+---
+title: "Database schema and seed data"
+description: "PlataformaEduca uses MySQL with Hibernate auto-DDL. Learn the table layout, relationships, and what seed data is created on first startup."
+---
+
+PlataformaEduca stores all data in a MySQL 8 database named `plataforma_educativa`. Hibernate manages the schema automatically via `spring.jpa.hibernate.ddl-auto=update` — no manual migration scripts are required. On first startup, the `DataInitializer` component inserts a baseline set of roles, users, grade levels, classrooms, and courses.
+
+## Requirements
+
+- MySQL 8.x or higher
+- Schema name: `plataforma_educativa`
+
+Create the schema before starting the server:
+
+```bash
+mysql -u root -p -e "CREATE DATABASE plataforma_educativa;"
+```
+
+## Table reference
+
+The tables below are created automatically by Hibernate on first startup.
+
+### User and authentication tables
+
+<AccordionGroup>
+  <Accordion title="usuarios">
+    Stores all user accounts.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombres` | varchar | First name(s) |
+    | `apellidos` | varchar | Last name(s) |
+    | `email` | varchar | Unique; used as login identifier |
+    | `password` | varchar | BCrypt hash |
+    | `activo` | boolean | Whether the account is active |
+  </Accordion>
+
+  <Accordion title="roles">
+    Defines the available roles. Seeded automatically on first startup.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombre` | varchar | Role name |
+
+    Seeded values: `USER`, `ADMIN`, `COORDINADOR`, `DOCENTE`, `ESTUDIANTE`
+  </Accordion>
+
+  <Accordion title="usuario_roles">
+    Join table for the many-to-many relationship between `usuarios` and `roles`.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `usuario_id` | bigint | Foreign key → `usuarios.id` |
+    | `rol_id` | bigint | Foreign key → `roles.id` |
+  </Accordion>
+</AccordionGroup>
+
+### Role-specific profile tables
+
+<AccordionGroup>
+  <Accordion title="coordinadores">
+    One record per user with the COORDINADOR role.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `area` | varchar | Administrative area |
+    | `usuario_id` | bigint | Foreign key → `usuarios.id` |
+  </Accordion>
+
+  <Accordion title="docentes">
+    One record per user with the DOCENTE role.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `especialidad` | varchar | Teaching specialty |
+    | `usuario_id` | bigint | Foreign key → `usuarios.id` |
+  </Accordion>
+
+  <Accordion title="estudiantes">
+    One record per user with the ESTUDIANTE role.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `codigo` | varchar | Student code |
+    | `grado_id` | bigint | Foreign key → `grados.id` |
+    | `usuario_id` | bigint | Foreign key → `usuarios.id` |
+  </Accordion>
+</AccordionGroup>
+
+### Academic structure tables
+
+<AccordionGroup>
+  <Accordion title="grados">
+    Grade levels for students.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombre` | varchar | Grade name |
+    | `seccion` | varchar | Section identifier |
+
+    Seeded values: `1ro Secundaria A`, `2do Secundaria B`
+  </Accordion>
+
+  <Accordion title="salones / aulas">
+    Physical classrooms and labs.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombre` | varchar | Room name |
+    | `capacidad` | int | Student capacity |
+    | `ubicacion` | varchar | Physical location |
+
+    Seeded values: `Aula 101`, `Laboratorio A`
+  </Accordion>
+
+  <Accordion title="cursos">
+    Course catalog.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombre` | varchar | Course name |
+    | `descripcion` | varchar | Course description |
+    | `creditos` | int | Credit value |
+    | `estado` | boolean | Whether the course is active. Defaults to `true`. |
+
+    Seeded values: `Matemáticas` (4 credits), `Comunicación` (3 credits)
+  </Accordion>
+
+  <Accordion title="periodos">
+    Academic periods (semesters, quarters, etc.).
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nombre` | varchar | Period name |
+    | `fechaInicio` | date | Start date |
+    | `fechaFin` | date | End date |
+    | `activo` | boolean | Whether the period is current |
+  </Accordion>
+</AccordionGroup>
+
+### Assignment and grading tables
+
+<AccordionGroup>
+  <Accordion title="asignaciones_docentes">
+    Links a teacher to a course, classroom, and academic period.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `docente_id` | bigint | Foreign key → `docentes.id` |
+    | `curso_id` | bigint | Foreign key → `cursos.id` |
+    | `salon_id` | bigint | Foreign key → `salones.id` |
+    | `periodo_id` | bigint | Foreign key → `periodos.id` |
+  </Accordion>
+
+  <Accordion title="evaluaciones">
+    Assessment definitions linked to a course and teacher assignment.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `titulo` | varchar | Assessment title |
+    | `porcentaje` | decimal | Weight as a percentage of the final grade |
+    | `fecha` | date | Assessment date |
+    | `curso_id` | bigint | Foreign key → `cursos.id` |
+    | `asignacion_docente_id` | bigint | Foreign key → `asignaciones_docentes.id` |
+  </Accordion>
+
+  <Accordion title="notas">
+    Individual student grades for each assessment.
+
+    | Column | Type | Notes |
+    |---|---|---|
+    | `id` | bigint | Primary key, auto-increment |
+    | `nota` | decimal | Numeric grade |
+    | `observacion` | varchar | Optional teacher comment |
+    | `evaluacion_id` | bigint | Foreign key → `evaluaciones.id` |
+    | `estudiante_id` | bigint | Foreign key → `estudiantes.id` |
+  </Accordion>
+</AccordionGroup>
+
+## Seed data
+
+The `DataInitializer` component runs once on first startup and inserts the following accounts:
+
+| Email | Password | Role |
+|---|---|---|
+| admin@gmail.com | admin123 | ADMIN |
+| coord@gmail.com | coord123 | COORDINADOR |
+| profe@gmail.com | profe123 | DOCENTE |
+| alumno@gmail.com | alumno123 | ESTUDIANTE |
+
+<Warning>
+  The seed accounts use simple passwords suitable for local development only. Change or disable them before deploying to any environment accessible from the internet.
+</Warning>
+
+In addition to users, the seeder inserts two grade levels (`1ro Secundaria A`, `2do Secundaria B`), two classrooms (`Aula 101`, `Laboratorio A`), and two courses (`Matemáticas` with 4 credits, `Comunicación` with 3 credits).
